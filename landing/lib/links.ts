@@ -1,12 +1,10 @@
 /**
- * The KnowledgeWeaver dashboard is a separate application (Vite) running on
- * its own origin. In local development it is reachable through the SSH tunnel
- * at http://localhost:4000. In production this should be the deployed origin.
- *
- * Override with NEXT_PUBLIC_DASHBOARD_URL in .env.local (or your deploy env).
+ * The KnowledgeWeaver dashboard ships under /app/ on the same origin as the
+ * landing (one Cloudflare Pages project, combined build). For local dev with
+ * separate ports, override with NEXT_PUBLIC_DASHBOARD_URL in landing/.env.local.
  */
 export const DASHBOARD_URL =
-  process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "http://localhost:4000";
+  process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "/app/";
 
 export const EXPLORER_CONTRACT_URL =
   "https://explorer-bradbury.genlayer.com/address/0xE9b1c0c58fa9f1307223859d703686D7b02a5775";
