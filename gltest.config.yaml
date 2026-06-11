@@ -1,0 +1,7 @@
+# gltest configuration (genlayer-test v0.29 schema)
+# Direct-mode tests need no network/accounts. Integration tests against
+# Bradbury are configured at runtime (see scripts/) using ACCOUNT_PRIVATE_KEY
+# from .env, so this file intentionally omits private keys.
+paths:
+  contracts: contracts
+  artifacts: artifacts
