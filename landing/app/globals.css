@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+  html,
+  body {
+    background: #08090a;
+    color: #fafafa;
+    font-feature-settings: "cv11", "ss03", "ss01";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: rgba(16, 185, 129, 0.2);
+    color: #fafafa;
+  }
+  :focus-visible {
+    outline: 2px solid rgba(16, 185, 129, 0.55);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+  /* hairline divider that respects high-DPR */
+  .hairline {
+    box-shadow: inset 0 -1px 0 #1d1d20;
+  }
+  /* subtle radial vignette behind hero */
+  .hero-glow {
+    background:
+      radial-gradient(60% 50% at 50% 0%, rgba(16, 185, 129, 0.08), transparent 60%),
+      radial-gradient(40% 40% at 50% 0%, rgba(96, 165, 250, 0.05), transparent 60%);
+  }
+}
