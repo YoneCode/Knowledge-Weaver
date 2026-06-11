@@ -1,0 +1,30 @@
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+# Allow env templates explicitly
+!.env.example
+!.env.*.example
+
+# Workspace / agent files (developer-local only)
+.kiro/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.gltest_cache/
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+.next/
+out/
+*.tsbuildinfo
+
+# Misc
+*.log
+artifacts/
+.DS_Store
