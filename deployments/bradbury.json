@@ -1,0 +1,7 @@
+{
+  "network": "testnet-bradbury",
+  "chain_id": 4221,
+  "address": "0xE9b1c0c58fa9f1307223859d703686D7b02a5775",
+  "tx_hash": "0x79b75dfc00b24295cdb34712bac83eec6e3ce5877bb0634437bd84e773fa5f4c",
+  "explorer": "https://explorer-bradbury.genlayer.com/contract/0xE9b1c0c58fa9f1307223859d703686D7b02a5775"
+}
