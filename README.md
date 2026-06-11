@@ -13,7 +13,7 @@ Only when their reasoning converges does the entry write to chain.
 [![Chain ID](https://img.shields.io/badge/chain%20id-4221-3b82f6?style=for-the-badge)](https://docs.genlayer.com/)
 [![License](https://img.shields.io/badge/license-MIT-71717a?style=for-the-badge)](LICENSE)
 [![Built on GenLayer](https://img.shields.io/badge/built%20on-GenLayer-fbbf24?style=for-the-badge)](https://genlayer.com/)
-[![Status](https://img.shields.io/badge/status-live%20on%20testnet-10b981?style=for-the-badge)](https://explorer-bradbury.genlayer.com/contract/0xE9b1c0c58fa9f1307223859d703686D7b02a5775)
+[![Status](https://img.shields.io/badge/status-live%20on%20testnet-10b981?style=for-the-badge)](https://explorer-bradbury.genlayer.com/address/0xE9b1c0c58fa9f1307223859d703686D7b02a5775)
 
 </div>
 
@@ -25,7 +25,7 @@ The contract is deployed and currently active on the GenLayer Bradbury testnet. 
 
 | Field | Value |
 |---|---|
-| Contract | [`0xE9b1c0c58fa9f1307223859d703686D7b02a5775`](https://explorer-bradbury.genlayer.com/contract/0xE9b1c0c58fa9f1307223859d703686D7b02a5775) |
+| Contract | [`0xE9b1c0c58fa9f1307223859d703686D7b02a5775`](https://explorer-bradbury.genlayer.com/address/0xE9b1c0c58fa9f1307223859d703686D7b02a5775) |
 | Knowledge nodes | **2** accepted into the graph |
 | Proposals decided | **3** &nbsp;·&nbsp; 2 accepted &nbsp;·&nbsp; 1 rejected |
 | Participants | **3** registered addresses |
@@ -176,6 +176,6 @@ MIT &mdash; see [LICENSE](LICENSE).
 
 <div align="center">
 
-[GitHub](https://github.com/YoneCode/Knowledge-Weaver) &middot; [X](https://x.com/YoneCode) &middot; [Explorer](https://explorer-bradbury.genlayer.com/contract/0xE9b1c0c58fa9f1307223859d703686D7b02a5775)
+[GitHub](https://github.com/YoneCode/Knowledge-Weaver) &middot; [X](https://x.com/YoneCode) &middot; [Explorer](https://explorer-bradbury.genlayer.com/address/0xE9b1c0c58fa9f1307223859d703686D7b02a5775)
 
 </div>

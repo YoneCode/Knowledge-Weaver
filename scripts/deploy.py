@@ -73,7 +73,7 @@ def main() -> None:
     if not address:
         fail(f"Could not find deployed address in receipt. Raw: {json.dumps(receipt, default=str)[:600]}")
 
-    explorer = f"https://explorer-bradbury.genlayer.com/contract/{address}"
+    explorer = f"https://explorer-bradbury.genlayer.com/address/{address}"
     print("\n✅ Deployed KnowledgeWeaver")
     print(f"   Address : {address}")
     print(f"   Explorer: {explorer}")

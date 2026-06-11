@@ -227,7 +227,7 @@ export default function App() {
                 Deployed at{" "}
                 <a
                   className="mono-link"
-                  href={`${EXPLORER_URL}/contract/${CONTRACT_ADDRESS}`}
+                  href={`${EXPLORER_URL}/address/${CONTRACT_ADDRESS}`}
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -1058,7 +1058,7 @@ function SettingsView({
           <KV k="Address">
             <a
               className="mono-link"
-              href={`${EXPLORER_URL}/contract/${CONTRACT_ADDRESS}`}
+              href={`${EXPLORER_URL}/address/${CONTRACT_ADDRESS}`}
               target="_blank"
               rel="noreferrer"
             >
