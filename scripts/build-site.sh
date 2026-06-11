@@ -25,12 +25,6 @@ echo "▶ building dashboard (Vite, base=/app/)"
 mkdir -p "$DIST/app"
 cp -a "$ROOT/frontend/dist/." "$DIST/app/"
 
-# Cloudflare Pages SPA fallback for the dashboard.
-# Any /app/* path serves /app/index.html (HTTP 200) so client-side routing works.
-cat > "$DIST/_redirects" <<'EOF'
-/app/*  /app/index.html  200
-EOF
-
 echo "✓ Build complete"
 echo "  dist/index.html      → landing"
 echo "  dist/app/index.html  → dashboard"
