@@ -259,6 +259,7 @@ button:focus-visible,
 }
 
 .brand {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: var(--s-3);
@@ -268,8 +269,18 @@ button:focus-visible,
   text-decoration: none;
   border-radius: var(--r-md);
   transition: background var(--d-fast) var(--ease);
+  min-width: 0;
 }
 .brand:hover { text-decoration: none; background: var(--c-surface-2); }
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.close-mobile { display: none; }
+@media (max-width: 1023px) {
+  .close-mobile { display: inline-flex; }
+}
 .brand-mark {
   width: 28px;
   height: 28px;

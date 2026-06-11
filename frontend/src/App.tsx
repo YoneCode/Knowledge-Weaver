@@ -308,21 +308,22 @@ function Sidebar({
 }) {
   return (
     <aside className="sidebar" aria-label="Primary">
-      <a className="brand" href={LANDING_URL} aria-label="KnowledgeWeaver — back to home">
-        <span className="brand-mark" aria-hidden>
-          <IconLogo size={16} />
-        </span>
-        <span className="brand-name">KnowledgeWeaver</span>
+      <div className="sidebar-head">
+        <a className="brand" href={LANDING_URL} aria-label="KnowledgeWeaver — back to home">
+          <span className="brand-mark" aria-hidden>
+            <IconLogo size={16} />
+          </span>
+          <span className="brand-name">KnowledgeWeaver</span>
+        </a>
         <button
           type="button"
-          className="btn icon"
+          className="btn icon close-mobile"
           aria-label="Close menu"
-          onClick={(e) => { e.preventDefault(); onCloseMobile(); }}
-          style={{ marginLeft: "auto" }}
+          onClick={onCloseMobile}
         >
           <IconClose size={14} />
         </button>
-      </a>
+      </div>
 
       <nav className="nav" aria-label="Sections">
         <div className="nav-section">Workspace</div>
