@@ -115,17 +115,66 @@ export function getReader() {
   return _reader;
 }
 
+/** EIP-3085 chain params for adding Bradbury to a wallet if it's missing. */
+const BRADBURY_HEX_ID = "0x107d"; // 4221
+const BRADBURY_CHAIN_PARAMS = {
+  chainId: BRADBURY_HEX_ID,
+  chainName: "GenLayer Bradbury Testnet",
+  nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 },
+  rpcUrls: ["https://rpc-bradbury.genlayer.com"],
+  blockExplorerUrls: ["https://explorer-bradbury.genlayer.com/"],
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Eip1193 = { request: (args: { method: string; params?: any[] }) => Promise<any> };
+
+/**
+ * Ensure the connected wallet is on Bradbury (chain 4221) using only standard
+ * EIP-3326 / EIP-3085 methods. We deliberately do NOT use genlayer-js
+ * `client.connect()`, which forces the MetaMask Snap flow (`wallet_getSnaps`)
+ * and crashes on wallets that don't implement Snaps (Privy embedded, etc.).
+ */
+async function ensureBradbury(provider: Eip1193): Promise<void> {
+  try {
+    const current = await provider.request({ method: "eth_chainId" });
+    if (typeof current === "string" && current.toLowerCase() === BRADBURY_HEX_ID) {
+      return;
+    }
+  } catch {
+    // some providers don't support eth_chainId pre-connect; fall through to switch
+  }
+  try {
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: BRADBURY_HEX_ID }],
+    });
+  } catch (err) {
+    const e = err as { code?: number; message?: string };
+    const notAdded =
+      e?.code === 4902 ||
+      /unrecognized chain|not been added|add this network/i.test(e?.message ?? "");
+    if (notAdded) {
+      await provider.request({
+        method: "wallet_addEthereumChain",
+        params: [BRADBURY_CHAIN_PARAMS],
+      });
+    } else {
+      throw err;
+    }
+  }
+}
+
 /** Build a write client backed by the connected wallet (e.g. Privy). */
 export async function getWriter(account: `0x${string}`, provider: unknown) {
-  const client = createClient({
+  const p = provider as Eip1193;
+  // Switch the wallet to Bradbury with standard methods (no MetaMask Snap).
+  await ensureBradbury(p);
+  return createClient({
     chain: testnetBradbury,
     account,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    provider: provider as any,
+    provider: p as any,
   });
-  // Ensure the wallet is on Bradbury (adds the network if missing).
-  await client.connect("testnetBradbury");
-  return client;
 }
 
 // ───────────────────────────── Reads ─────────────────────────────────────
