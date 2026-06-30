@@ -1,6 +1,5 @@
 import { createClient } from "genlayer-js";
 import { testnetBradbury } from "genlayer-js/chains";
-import { TransactionStatus } from "genlayer-js/types";
 import { CONTRACT_ADDRESS, WALLET_RPC_URL } from "./config";
 
 // ───────────────────────────── Types ─────────────────────────────────────
@@ -267,7 +266,12 @@ export async function readProfile(address: string): Promise<Profile> {
 // ───────────────────────────── Writes ────────────────────────────────────
 type WriteClient = Awaited<ReturnType<typeof getWriter>>;
 
-async function submit(
+/**
+ * Submit a write and return the GenLayer transaction id. This resolves once
+ * the submission transaction is mined (seconds) — the multi-stage consensus
+ * lifecycle then runs asynchronously and is followed via `trackTransaction`.
+ */
+async function send(
   client: WriteClient,
   functionName: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -279,17 +283,74 @@ async function submit(
     args,
     value: 0n,
   });
-  await getReader().waitForTransactionReceipt({
-    hash: txHash,
-    status: TransactionStatus.ACCEPTED,
-  });
   return String(txHash);
 }
 
-export const writeRegister = (c: WriteClient) => submit(c, "register", []);
+export const sendRegister = (c: WriteClient) => send(c, "register", []);
+export const sendPropose = (c: WriteClient, content: string, category: string) =>
+  send(c, "propose", [content, category]);
+export const sendEndorse = (c: WriteClient, nodeId: string) => send(c, "endorse", [nodeId]);
 
-export const writePropose = (c: WriteClient, content: string, category: string) =>
-  submit(c, "propose", [content, category]);
+/** Terminal GenLayer consensus states. */
+const TERMINAL_STATUSES = new Set([
+  "ACCEPTED",
+  "FINALIZED",
+  "UNDETERMINED",
+  "CANCELED",
+  "LEADER_TIMEOUT",
+  "VALIDATORS_TIMEOUT",
+]);
 
-export const writeEndorse = (c: WriteClient, nodeId: string) =>
-  submit(c, "endorse", [nodeId]);
+export interface TrackResult {
+  statusName: string;
+  executionResultName?: string;
+  succeeded: boolean;
+}
+
+/**
+ * Poll a transaction through the consensus lifecycle, invoking `onStatus`
+ * whenever the status name changes (PENDING -> PROPOSING -> COMMITTING ->
+ * REVEALING -> ACCEPTED -> FINALIZED), and resolve when it reaches a terminal
+ * state (or times out).
+ */
+export async function trackTransaction(
+  txId: string,
+  onStatus: (statusName: string) => void,
+  opts: { intervalMs?: number; timeoutMs?: number } = {},
+): Promise<TrackResult> {
+  const intervalMs = opts.intervalMs ?? 4000;
+  const timeoutMs = opts.timeoutMs ?? 12 * 60 * 1000;
+  const start = Date.now();
+  let last = "";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const reader = getReader() as any;
+  for (;;) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let tx: any;
+    try {
+      tx = await withRetry(() => reader.getTransaction({ hash: txId }));
+    } catch {
+      // transient read error — keep polling
+    }
+    const name: string = tx?.statusName ?? "";
+    if (name && name !== last) {
+      last = name;
+      onStatus(name);
+    }
+    if (name && TERMINAL_STATUSES.has(name)) {
+      const succeeded = name === "ACCEPTED" || name === "FINALIZED";
+      return { statusName: name, executionResultName: tx?.txExecutionResultName, succeeded };
+    }
+    if (Date.now() - start > timeoutMs) {
+      return { statusName: last || "TIMEOUT", succeeded: false };
+    }
+    await sleep(intervalMs);
+  }
+}
+
+/** Most recent proposal authored by `address` (for verdict reveal). */
+export async function latestProposalFor(address: string): Promise<Proposal | null> {
+  const rows = await readProposals(0, 10);
+  const mine = rows.filter((p) => p.proposer.toLowerCase() === address.toLowerCase());
+  return mine[0] ?? rows[0] ?? null;
+}

@@ -12,13 +12,15 @@ import {
   addBradburyNetwork,
   getWriter,
   isRpcIdError,
+  latestProposalFor,
   readNodes,
   readProfile,
   readProposals,
   readStats,
-  writeEndorse,
-  writePropose,
-  writeRegister,
+  sendEndorse,
+  sendPropose,
+  sendRegister,
+  trackTransaction,
   type KnowledgeNode,
   type Profile,
   type Proposal,
@@ -58,6 +60,18 @@ const fmt = (n: number | string | undefined): string => {
 };
 
 type View = "dashboard" | "graph" | "proposals" | "settings";
+
+type TxKind = "Propose" | "Endorse" | "Register";
+type TxStage = "signing" | "consensus" | "done" | "error";
+type TxState = {
+  kind: TxKind;
+  stage: TxStage;
+  startedAt: number;
+  txId?: string;
+  statusName?: string;
+  result?: Proposal | null;
+  error?: string;
+} | null;
 
 const NAV: { key: View; label: string; Icon: typeof IconDashboard }[] = [
   { key: "dashboard", label: "Dashboard", Icon: IconDashboard },
@@ -102,7 +116,7 @@ export default function App() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState<string>("");
+  const [tx, setTx] = useState<TxState>(null);
   const [toast, setToast] = useState<string>("");
   const [netHelp, setNetHelp] = useState(false);
 
@@ -133,30 +147,61 @@ export default function App() {
     refresh();
   }, [refresh]);
 
-  const withWriter = useCallback(
-    async (label: string, fn: (c: Awaited<ReturnType<typeof getWriter>>) => Promise<string>) => {
+  const runTx = useCallback(
+    async (
+      kind: TxKind,
+      sender: (c: Awaited<ReturnType<typeof getWriter>>) => Promise<string>,
+    ) => {
       if (!address || !wallet) {
         setToast("Connect a wallet first.");
         return;
       }
-      setBusy(label);
-      setToast("");
+      setNetHelp(false);
+      setTx({ kind, stage: "signing", startedAt: Date.now() });
       try {
         const provider = await wallet.getEthereumProvider();
         const client = await getWriter(address, provider);
-        const tx = await fn(client);
-        setToast(`${label} confirmed · ${short(tx)}`);
-        setNetHelp(false);
+        const txId = await sender(client);
+        setTx((t) => (t ? { ...t, stage: "consensus", txId, statusName: "PENDING" } : t));
+
+        const res = await trackTransaction(txId, (statusName) => {
+          setTx((t) => (t ? { ...t, statusName } : t));
+        });
+
+        let result: Proposal | null = null;
+        if (res.succeeded && kind === "Propose") {
+          try {
+            result = await latestProposalFor(address);
+          } catch {
+            result = null;
+          }
+        }
+        setTx((t) =>
+          t
+            ? {
+                ...t,
+                stage: res.succeeded ? "done" : "error",
+                statusName: res.statusName,
+                result,
+                error: res.succeeded ? undefined : `Consensus ended in ${res.statusName}.`,
+              }
+            : t,
+        );
         await refresh();
       } catch (e) {
         if (isRpcIdError(e)) {
+          setTx(null);
           setNetHelp(true);
           setToast("Your wallet's Bradbury network uses an incompatible RPC.");
         } else {
-          setToast(`${label} failed · ${(e as Error).message}`);
+          const msg = (e as Error).message ?? "Transaction failed";
+          const rejected = /user rejected|denied|rejected the request/i.test(msg);
+          setTx((t) =>
+            t
+              ? { ...t, stage: "error", error: rejected ? "You rejected the request in your wallet." : msg }
+              : t,
+          );
         }
-      } finally {
-        setBusy("");
       }
     },
     [address, wallet, refresh],
@@ -174,10 +219,13 @@ export default function App() {
     }
   }, [wallet]);
 
-  const onEndorse = (id: string) => withWriter("Endorse", (c) => writeEndorse(c, id));
+  const onEndorse = (id: string) => runTx("Endorse", (c) => sendEndorse(c, id));
   const onPropose = (content: string, category: string) =>
-    withWriter("Propose", (c) => writePropose(c, content, category));
-  const onRegister = () => withWriter("Register", (c) => writeRegister(c));
+    runTx("Propose", (c) => sendPropose(c, content, category));
+  const onRegister = () => runTx("Register", (c) => sendRegister(c));
+
+  // A write is in flight until it reaches a terminal stage.
+  const busyKind: TxKind | "" = tx && tx.stage !== "done" && tx.stage !== "error" ? tx.kind : "";
 
   const navigate = (v: View) => {
     setView(v);
@@ -285,10 +333,10 @@ export default function App() {
               nodes={nodes}
               loading={loading}
               canAct={!!address && configured}
-              busy={busy}
+              busy={busyKind}
               onEndorse={onEndorse}
               proposeDisabled={!address || !configured}
-              proposeBusy={busy === "Propose"}
+              proposeBusy={busyKind === "Propose"}
               onPropose={onPropose}
             />
           )}
@@ -305,7 +353,7 @@ export default function App() {
               stats={stats}
               profile={profile}
               connected={!!address}
-              busy={busy === "Register"}
+              busy={busyKind === "Register"}
               onRegister={onRegister}
             />
           )}
@@ -316,6 +364,17 @@ export default function App() {
           <span className="dim">v0.1 · chain 4221</span>
         </footer>
       </div>
+
+      {tx && (
+        <TxProgress
+          tx={tx}
+          onClose={() => setTx(null)}
+          onViewGraph={() => {
+            setView("graph");
+            setTx(null);
+          }}
+        />
+      )}
 
       {toast && (
         <div className="toast" role="status" onClick={() => setToast("")}>
@@ -1150,6 +1209,223 @@ function KV({ k, children }: { k: string; children: ReactNode }) {
     <div className="kv-row">
       <span className="k">{k}</span>
       <span className="v">{children}</span>
+    </div>
+  );
+}
+
+// ─────────────────────────── Transaction progress ───────────────────────
+const STATUS_LABEL: Record<string, string> = {
+  PENDING: "Queued for consensus",
+  ACTIVATED: "Queued for consensus",
+  PROPOSING: "Leader proposing a verdict",
+  COMMITTING: "Validators committing votes",
+  REVEALING: "Validators revealing votes",
+  APPEAL_COMMITTING: "Appeal — committing",
+  APPEAL_REVEALING: "Appeal — revealing",
+  READY_TO_FINALIZE: "Finalizing",
+  ACCEPTED: "Accepted by consensus",
+  FINALIZED: "Finalized on-chain",
+  UNDETERMINED: "Consensus undetermined",
+  LEADER_TIMEOUT: "Leader timed out",
+  VALIDATORS_TIMEOUT: "Validators timed out",
+  CANCELED: "Canceled",
+};
+
+const KIND_COPY: Record<TxKind, { title: string; doing: string }> = {
+  Propose: { title: "New proposal", doing: "Five validators are independently judging your entry." },
+  Endorse: { title: "Endorse node", doing: "Recording your endorsement on-chain." },
+  Register: { title: "Register", doing: "Creating your participant profile on-chain." },
+};
+
+const TX_STEPS = ["Sign", "Submit", "Consensus", "Result"];
+
+function TxProgress({
+  tx,
+  onClose,
+  onViewGraph,
+}: {
+  tx: NonNullable<TxState>;
+  onClose: () => void;
+  onViewGraph: () => void;
+}) {
+  const [now, setNow] = useState(Date.now());
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (tx.stage === "done" || tx.stage === "error") return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [tx.stage]);
+
+  const elapsed = Math.max(0, Math.floor((now - tx.startedAt) / 1000));
+  const clock = `${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`;
+
+  const copy = () => {
+    if (!tx.txId) return;
+    navigator.clipboard?.writeText(tx.txId).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1400);
+      },
+      () => undefined,
+    );
+  };
+
+  const stepState = (i: number): "done" | "active" | "error" | "todo" => {
+    if (tx.stage === "error") {
+      if (!tx.txId) return i === 0 ? "error" : "todo";
+      if (i <= 1) return "done";
+      if (i === 2) return "error";
+      return "todo";
+    }
+    if (tx.stage === "signing") return i === 0 ? "active" : "todo";
+    if (tx.stage === "consensus") {
+      if (i <= 1) return "done";
+      if (i === 2) return "active";
+      return "todo";
+    }
+    return "done"; // stage === done
+  };
+
+  const copyMeta = KIND_COPY[tx.kind];
+  const statusLabel =
+    tx.stage === "signing"
+      ? "Waiting for wallet signature"
+      : tx.statusName
+        ? STATUS_LABEL[tx.statusName] ?? tx.statusName
+        : "Preparing";
+  const running = tx.stage === "signing" || tx.stage === "consensus";
+  const closable = tx.stage === "done" || tx.stage === "error";
+  const accepted = tx.result?.status === "accepted";
+
+  return (
+    <div className="tx-overlay" role="dialog" aria-modal="true" aria-label={`${tx.kind} transaction`}>
+      <div className="tx-card">
+        <div className="tx-head">
+          <div>
+            <div className="tx-kicker">{copyMeta.title}</div>
+            <h3 className="tx-title">
+              {tx.stage === "done" ? "Confirmed on-chain" : tx.stage === "error" ? "Couldn’t complete" : copyMeta.doing}
+            </h3>
+          </div>
+          <button
+            type="button"
+            className="btn icon"
+            aria-label="Close"
+            onClick={onClose}
+            disabled={!closable}
+            title={closable ? "Close" : "In progress…"}
+          >
+            <IconClose size={16} />
+          </button>
+        </div>
+
+        {/* Stepper */}
+        <div className="tx-steps" aria-hidden>
+          {TX_STEPS.map((label, i) => {
+            const st = stepState(i);
+            return (
+              <div key={label} className={`tx-step ${st}`}>
+                <span className="tx-dot">
+                  {st === "done" ? (
+                    <IconCheck size={12} />
+                  ) : st === "error" ? (
+                    <IconX size={12} />
+                  ) : st === "active" ? (
+                    <span className="tx-spinner" />
+                  ) : (
+                    <span className="tx-dot-idle" />
+                  )}
+                </span>
+                <span className="tx-step-label">{label}</span>
+                {i < TX_STEPS.length - 1 && <span className="tx-connector" />}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Live status */}
+        {tx.stage !== "done" && tx.stage !== "error" && (
+          <div className="tx-status">
+            <span className="tx-status-pulse" />
+            <span className="tx-status-text">{statusLabel}</span>
+            <span className="tx-clock mono">{clock}</span>
+          </div>
+        )}
+
+        {/* Tx hash */}
+        {tx.txId && (
+          <div className="tx-hash">
+            <span className="dim">Transaction</span>
+            <button type="button" className="tx-hash-id mono" onClick={copy} title="Copy id">
+              {short(tx.txId)} {copied ? "· copied" : ""}
+            </button>
+            <a
+              className="tx-hash-link"
+              href={`${EXPLORER_URL}/tx/${tx.txId}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Explorer <IconExternal size={12} />
+            </a>
+          </div>
+        )}
+
+        {/* Result */}
+        {tx.stage === "done" && tx.kind === "Propose" && tx.result && (
+          <div className={`tx-result ${accepted ? "ok" : "no"}`}>
+            <div className="tx-result-head">
+              <span className={`badge ${accepted ? "accepted" : "rejected"}`}>
+                {accepted ? <IconCheck size={11} /> : <IconX size={11} />}
+                {accepted ? "Accepted" : "Rejected"}
+              </span>
+              <span className="tx-result-quality mono">quality {tx.result.quality}</span>
+            </div>
+            <div className="tx-result-label">{tx.result.content}</div>
+            {tx.result.reason && <div className="tx-result-reason">“{tx.result.reason}”</div>}
+          </div>
+        )}
+
+        {tx.stage === "done" && tx.kind !== "Propose" && (
+          <div className="tx-result ok">
+            <div className="tx-result-head">
+              <span className="badge accepted"><IconCheck size={11} /> Confirmed</span>
+            </div>
+            <div className="tx-result-reason">
+              {tx.kind === "Register" ? "Your participant profile is live." : "Your endorsement was recorded."}
+            </div>
+          </div>
+        )}
+
+        {tx.stage === "error" && (
+          <div className="tx-result no">
+            <div className="tx-result-head">
+              <span className="badge rejected"><IconX size={11} /> Failed</span>
+            </div>
+            <div className="tx-result-reason">{tx.error ?? "The transaction did not complete."}</div>
+          </div>
+        )}
+
+        {/* Footer actions */}
+        <div className="tx-actions">
+          {running ? (
+            <span className="dim sm">
+              Consensus can take a few minutes. You can keep this open or close it — it won’t cancel.
+            </span>
+          ) : (
+            <>
+              {tx.stage === "done" && tx.kind === "Propose" && accepted && (
+                <button type="button" className="btn secondary" onClick={onViewGraph}>
+                  View in graph
+                </button>
+              )}
+              <button type="button" className="btn" onClick={onClose}>
+                Done
+              </button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
