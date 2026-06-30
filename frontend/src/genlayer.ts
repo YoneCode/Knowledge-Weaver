@@ -1,7 +1,7 @@
 import { createClient } from "genlayer-js";
 import { testnetBradbury } from "genlayer-js/chains";
 import { TransactionStatus } from "genlayer-js/types";
-import { CONTRACT_ADDRESS } from "./config";
+import { CONTRACT_ADDRESS, WALLET_RPC_URL } from "./config";
 
 // ───────────────────────────── Types ─────────────────────────────────────
 export interface Stats {
@@ -121,7 +121,9 @@ const BRADBURY_CHAIN_PARAMS = {
   chainId: BRADBURY_HEX_ID,
   chainName: "GenLayer Bradbury Testnet",
   nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 },
-  rpcUrls: ["https://rpc-bradbury.genlayer.com"],
+  // Wallet submits transactions here. Uses the id-normalizing proxy in
+  // production so MetaMask's string ids don't get rejected by the node.
+  rpcUrls: [WALLET_RPC_URL],
   blockExplorerUrls: ["https://explorer-bradbury.genlayer.com/"],
 };
 
