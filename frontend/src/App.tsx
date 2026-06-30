@@ -9,7 +9,9 @@ import {
   isContractConfigured,
 } from "./config";
 import {
+  addBradburyNetwork,
   getWriter,
+  isRpcIdError,
   readNodes,
   readProfile,
   readProposals,
@@ -102,6 +104,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string>("");
   const [toast, setToast] = useState<string>("");
+  const [netHelp, setNetHelp] = useState(false);
 
   const configured = isContractConfigured();
   const refreshing = useRef(false);
@@ -143,15 +146,33 @@ export default function App() {
         const client = await getWriter(address, provider);
         const tx = await fn(client);
         setToast(`${label} confirmed · ${short(tx)}`);
+        setNetHelp(false);
         await refresh();
       } catch (e) {
-        setToast(`${label} failed · ${(e as Error).message}`);
+        if (isRpcIdError(e)) {
+          setNetHelp(true);
+          setToast("Your wallet's Bradbury network uses an incompatible RPC.");
+        } else {
+          setToast(`${label} failed · ${(e as Error).message}`);
+        }
       } finally {
         setBusy("");
       }
     },
     [address, wallet, refresh],
   );
+
+  const fixNetwork = useCallback(async () => {
+    if (!wallet) return;
+    try {
+      const provider = await wallet.getEthereumProvider();
+      await addBradburyNetwork(provider);
+      setToast("Network RPC updated. Try your transaction again.");
+      setNetHelp(false);
+    } catch (e) {
+      setToast(`Could not update network · ${(e as Error).message}`);
+    }
+  }, [wallet]);
 
   const onEndorse = (id: string) => withWriter("Endorse", (c) => writeEndorse(c, id));
   const onPropose = (content: string, category: string) =>
@@ -237,6 +258,21 @@ export default function App() {
                 <a href={FAUCET_URL} target="_blank" rel="noreferrer">
                   Open faucet
                 </a>
+              </span>
+            </Banner>
+          )}
+
+          {netHelp && (
+            <Banner kind="warn">
+              <IconAlert />
+              <span>
+                Your wallet&apos;s Bradbury network is using an RPC that rejects this
+                wallet&apos;s requests. Two easy fixes:{" "}
+                <button type="button" className="link-btn" onClick={fixNetwork}>
+                  add the compatible RPC
+                </button>{" "}
+                (then retry), or in MetaMask remove the Bradbury network and reconnect.
+                Or just log in with email for a built-in wallet that always works.
               </span>
             </Banner>
           )}

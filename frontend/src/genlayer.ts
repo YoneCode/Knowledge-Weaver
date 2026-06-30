@@ -179,6 +179,25 @@ export async function getWriter(account: `0x${string}`, provider: unknown) {
   });
 }
 
+/**
+ * Ask the wallet to add the Bradbury network pointed at the id-normalizing
+ * proxy RPC. Useful when a wallet (e.g. MetaMask) already has Bradbury saved
+ * with the raw node RPC, which rejects its string JSON-RPC ids.
+ */
+export async function addBradburyNetwork(provider: unknown): Promise<void> {
+  const p = provider as Eip1193;
+  await p.request({ method: "wallet_addEthereumChain", params: [BRADBURY_CHAIN_PARAMS] });
+}
+
+/**
+ * True when an error is the Bradbury node rejecting a string JSON-RPC id —
+ * i.e. the wallet is submitting through an incompatible (non-proxy) RPC.
+ */
+export function isRpcIdError(err: unknown): boolean {
+  const msg = (err as Error)?.message ?? String(err ?? "");
+  return /unmarshal string into|id of type int|-32700|Parse error as single request/i.test(msg);
+}
+
 // ───────────────────────────── Reads ─────────────────────────────────────
 export async function readStats(): Promise<Stats> {
   const r = (await schedule(() =>
