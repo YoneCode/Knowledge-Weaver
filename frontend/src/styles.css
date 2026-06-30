@@ -1181,3 +1181,20 @@ button:focus-visible,
 /* Footer */
 .tx-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--s-3); }
 .tx-actions .dim { margin-right: auto; text-align: left; line-height: 1.45; }
+
+/* Per-validator vote progress */
+.tx-votes {
+  display: flex; flex-direction: column; gap: var(--s-2);
+  padding: var(--s-3) var(--s-4); margin-bottom: var(--s-4);
+  background: var(--c-surface-2); border: 1px solid var(--c-border); border-radius: var(--r-lg);
+}
+.vote-row { display: flex; align-items: center; gap: var(--s-3); }
+.vote-label { width: 76px; font-size: var(--t-xs); color: var(--c-text-3); }
+.vote-dots { display: flex; gap: 5px; flex: 1; }
+.vote-dot {
+  width: 100%; max-width: 26px; height: 6px; border-radius: var(--r-full);
+  background: var(--c-surface-3); border: 1px solid var(--c-border);
+  transition: background var(--d) var(--ease), border-color var(--d) var(--ease);
+}
+.vote-dot.on { background: var(--c-accent); border-color: var(--c-accent); }
+.vote-count { width: 36px; text-align: right; font-size: var(--t-xs); color: var(--c-text-2); }

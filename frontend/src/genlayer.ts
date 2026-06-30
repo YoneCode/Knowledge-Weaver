@@ -307,15 +307,24 @@ export interface TrackResult {
   succeeded: boolean;
 }
 
+/** Live consensus snapshot reported while a transaction is in flight. */
+export interface TxLive {
+  statusName: string;
+  validators: number;
+  committed: number;
+  revealed: number;
+  round: number;
+}
+
 /**
- * Poll a transaction through the consensus lifecycle, invoking `onStatus`
- * whenever the status name changes (PENDING -> PROPOSING -> COMMITTING ->
- * REVEALING -> ACCEPTED -> FINALIZED), and resolve when it reaches a terminal
- * state (or times out).
+ * Poll a transaction through the consensus lifecycle, invoking `onUpdate`
+ * whenever the status or vote tallies change (PENDING -> PROPOSING ->
+ * COMMITTING -> REVEALING -> ACCEPTED -> FINALIZED), and resolve when it
+ * reaches a terminal state (or times out).
  */
 export async function trackTransaction(
   txId: string,
-  onStatus: (statusName: string) => void,
+  onUpdate: (live: TxLive) => void,
   opts: { intervalMs?: number; timeoutMs?: number } = {},
 ): Promise<TrackResult> {
   const intervalMs = opts.intervalMs ?? 4000;
@@ -333,16 +342,24 @@ export async function trackTransaction(
       // transient read error — keep polling
     }
     const name: string = tx?.statusName ?? "";
-    if (name && name !== last) {
-      last = name;
-      onStatus(name);
+    const lr = tx?.lastRound ?? {};
+    const validators =
+      Number(lr.roundValidators?.length ?? tx?.numOfInitialValidators ?? 0) || 0;
+    const committed = Number(lr.votesCommitted ?? 0) || 0;
+    const revealed = Number(lr.votesRevealed ?? 0) || 0;
+    const round = Number(tx?.numOfRounds ?? lr.round ?? 0) || 0;
+
+    const key = `${name}:${committed}:${revealed}:${validators}`;
+    if (name && key !== last) {
+      last = key;
+      onUpdate({ statusName: name, validators, committed, revealed, round });
     }
     if (name && TERMINAL_STATUSES.has(name)) {
       const succeeded = name === "ACCEPTED" || name === "FINALIZED";
       return { statusName: name, executionResultName: tx?.txExecutionResultName, succeeded };
     }
     if (Date.now() - start > timeoutMs) {
-      return { statusName: last || "TIMEOUT", succeeded: false };
+      return { statusName: name || "TIMEOUT", succeeded: false };
     }
     await sleep(intervalMs);
   }

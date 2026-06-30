@@ -69,6 +69,9 @@ type TxState = {
   startedAt: number;
   txId?: string;
   statusName?: string;
+  validators?: number;
+  committed?: number;
+  revealed?: number;
   result?: Proposal | null;
   error?: string;
 } | null;
@@ -164,8 +167,18 @@ export default function App() {
         const txId = await sender(client);
         setTx((t) => (t ? { ...t, stage: "consensus", txId, statusName: "PENDING" } : t));
 
-        const res = await trackTransaction(txId, (statusName) => {
-          setTx((t) => (t ? { ...t, statusName } : t));
+        const res = await trackTransaction(txId, (live) => {
+          setTx((t) =>
+            t
+              ? {
+                  ...t,
+                  statusName: live.statusName,
+                  validators: live.validators || t.validators,
+                  committed: live.committed,
+                  revealed: live.revealed,
+                }
+              : t,
+          );
         });
 
         let result: Proposal | null = null;
@@ -1239,6 +1252,27 @@ const KIND_COPY: Record<TxKind, { title: string; doing: string }> = {
 
 const TX_STEPS = ["Sign", "Submit", "Consensus", "Result"];
 
+function VoteBar({ label, value, total }: { label: string; value: number; total: number }) {
+  const pct = total > 0 ? Math.min(100, Math.round((value / total) * 100)) : 0;
+  const dots = Array.from({ length: total });
+  return (
+    <div className="vote-row">
+      <span className="vote-label">{label}</span>
+      <span className="vote-dots" aria-hidden>
+        {dots.map((_, i) => (
+          <span key={i} className={`vote-dot ${i < value ? "on" : ""}`} />
+        ))}
+      </span>
+      <span className="vote-count mono">
+        {value}/{total}
+      </span>
+      <span className="sr-only">
+        {label} {value} of {total} ({pct}%)
+      </span>
+    </div>
+  );
+}
+
 function TxProgress({
   tx,
   onClose,
@@ -1350,6 +1384,14 @@ function TxProgress({
             <span className="tx-status-pulse" />
             <span className="tx-status-text">{statusLabel}</span>
             <span className="tx-clock mono">{clock}</span>
+          </div>
+        )}
+
+        {/* Per-validator vote progress */}
+        {tx.stage === "consensus" && (tx.validators ?? 0) > 0 && (
+          <div className="tx-votes">
+            <VoteBar label="Committed" value={tx.committed ?? 0} total={tx.validators ?? 0} />
+            <VoteBar label="Revealed" value={tx.revealed ?? 0} total={tx.validators ?? 0} />
           </div>
         )}
 
